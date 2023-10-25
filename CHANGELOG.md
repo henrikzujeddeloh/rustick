@@ -1,9 +1,17 @@
 # Changelog
 
-## [Unrelased]
+## [unreleased]
+
+## v0.0.3 (2023-10-25)
+
+## Features
+- adds start and end time to entry
+
+## Fixed
+- handle data.json file creation if not found
 
 
-## v0.0.2 (2023-10-24)A
+## v0.0.2 (2023-10-24)
 
 ### Features
 - parse input into json entry

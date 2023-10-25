@@ -1,44 +1,4 @@
+
 {
-  "log": [
-    {
-      "name": "something",
-      "duration": 0,
-      "tag": "Default"
-    },
-    {
-      "name": "something",
-      "duration": 0,
-      "tag": "Default"
-    },
-    {
-      "name": "something",
-      "duration": 0,
-      "tag": "Default"
-    },
-    {
-      "name": "asdf",
-      "duration": 0,
-      "tag": "Default"
-    },
-    {
-      "name": "asdf",
-      "duration": 0,
-      "tag": "Default"
-    },
-    {
-      "name": "asdf",
-      "duration": 0,
-      "tag": "Default"
-    },
-    {
-      "name": "asdf",
-      "duration": 0,
-      "tag": "Default"
-    },
-    {
-      "name": "some_task",
-      "duration": 0,
-      "tag": "Default"
-    }
-  ]
+    "log": []
 }
