@@ -1,31 +1,41 @@
-#![allow(unused)]
-
 // Import from standard library
 use std::time::Duration;
-use std::thread::sleep;
-use std::io::Read;
 use std::io::Write;
-use std::io::ErrorKind;
 use std::fs;
-use std::fs::File;
-use std::fs::OpenOptions;
-use std::io::BufReader;
 
 // Import from third parties
 use clap::Parser;
-use clap::error::ContextKind;
+use clap::Subcommand;
 use serde::{Deserialize, Serialize};
-use serde_json::Result;
-use chrono::Local;
+use crossterm::terminal::enable_raw_mode;
+use crossterm::event::{poll, read, Event, KeyCode};
 
 // import own modules
 mod utils;
 
-// create struct with CLI arguments
-#[derive(Parser)]
+// create struct with rustick commands
+#[derive(Parser, Debug)]
 struct Cli {
-    task: String,
-    duration: u32,
+    #[clap(subcommand)]
+    command: Command,
+}
+
+// commands with their arguments
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Start a new task time
+    Start {
+        /// description of task
+        task: String,
+        /// duration of task timer
+        duration: u32
+    },
+    /// View and/or edit task entry log
+    Log {
+        #[clap(long, short, action)]
+        /// clear log
+        clear: bool
+    }
 }
 
 // create struct with entry parameters
@@ -46,25 +56,60 @@ struct Log {
 }
 
 
-fn main() {
-    let args = Cli::parse();
-    let file_data = read_file("data.json");
-    // TODO: handle initial json parsing errors (add template if empty?)
-    let mut data_log: Log = serde_json::from_str(&file_data).expect("parsing json file");
 
-    println!("Running {} for {} minutes...", &args.task, &args.duration);
-    let new_entry: Entry = run_task(&args);
-    println!("New entry: {}", entry_to_json(&new_entry));
-    data_log.log.push(new_entry);
-    write_file(&log_to_json(&data_log));
+fn main() {
+    // define json template for newly-created data.json
+    let empty_log: &str = 
+    r#"{
+        "log": []
+    }"#;
+
+    let args = Cli::parse();
+
+    // define path to data.json
+    let json_path = "data.json";
+    let mut file = utils::open_file(&json_path);
+    let mut file_contents = utils::read_file(&mut file);
+    match file_contents.is_empty() {
+        true => file_contents = empty_log.to_string(),
+        false => ()
+    };
+    let mut data_log: Log = match serde_json::from_str(&file_contents){
+        Ok(data_log) => data_log,
+        Err(err) => {
+            panic!("error parsing json: {:?}", err)
+        }
+    };
+    match args.command {
+        Command::Start { task, duration }=> {
+            println!("Running {} for {} minutes...", &task, &duration);
+            let new_entry: Entry = run_task(&task, &duration);
+            //println!("New entry: {}", entry_to_json(&new_entry));
+            // add entry to the log
+            data_log.log.push(new_entry);
+            // write updated log as json to file
+            write_file(&log_to_json(&data_log));
+        },
+        Command::Log { clear } => {
+            if clear == true {
+                println!("Clearing Log!");
+                file_contents = empty_log.to_string();
+                write_file(&file_contents);
+            } else {
+                println!("Listing entries");
+            }
+        },
+    }
 }
 
-fn run_task(input: &Cli) -> Entry{
+fn run_task(task: &String, duration: &u32) -> Entry{
     let start_time = chrono::offset::Local::now();
-    update_bar(&input.duration);
+    update_bar(duration);
     let end_time = chrono::offset::Local::now();
-    let entry = Entry {name: input.task.to_string(),
-                        duration: input.duration,
+    let elapsed = (end_time - start_time).num_minutes();
+    
+    let entry = Entry {name: task.to_string(),
+                        duration: elapsed as u32,
                         tag: "Default".to_owned(),
                         start: start_time.to_string(),
                         finish: end_time.to_string()
@@ -73,58 +118,42 @@ fn run_task(input: &Cli) -> Entry{
 }
 
 fn update_bar(dur: &u32) {
-    let term_width: u32 = utils::get_term_width().into();
+    let term_width: u32 = utils::get_term_width();
     let millisec_per_block: u32 = (dur * 60000) / &term_width;
     let mut bar = String::from("");
-    for block in 1..term_width{
-        &bar.push('#');
+    for _block in 1..term_width{
+        let _ = &bar.push('#');
         print!("\r{}", &bar);
-        std::io::stdout().flush();
-        sleep(Duration::from_millis(millisec_per_block as u64));
+        let _ = std::io::stdout().flush();
+        enable_raw_mode().unwrap();
+        if poll(Duration::from_millis(millisec_per_block as u64)).unwrap() {
+            let event = read().unwrap();
+            println!("Event::{:?}\r", event);
+            if event == Event::Key(KeyCode::Char('s').into()) {
+                println!("Stopping timer");
+                break;
+            }
+
+        } else {
+            // do nothing
+        }
     }
 }
 
 
-fn read_file(file_path: &str) -> String {
-    let mut file = match File::open(&file_path) {
-        Ok(file) => file,
-        Err(error) => match error.kind() {
-            ErrorKind::NotFound => match File::create(&file_path) {
-                Ok(fc) => { 
-                    init_json_file();
-                    fc
-                }
-                Err(e) => panic!("Problem creating the file: {:?}", e),
-            },
-            other_error => {
-                panic!("Problem opening the file: {:?}", other_error);
-            }
-        },
-    };
-    let mut contents = String::new();
-    file.read_to_string(&mut contents);
-    contents
+// write string to file
+fn write_file(contents: &String) {
+    fs::write("data.json", &contents).expect("write contents file");
 }
 
-fn write_file(new_entry: &String) {
-    fs::write("data.json", &new_entry).expect("Unable to write file");
-}
-
-fn init_json_file() {
-    let contents: &str = r#"
-{
-    "log": []
-}"#;
-    fs::write("data.json", &contents).expect("Unable to write file");
-
-}
-
+// convert single entry to json
 fn entry_to_json(entry: &Entry) -> String {
     let j: String = serde_json::to_string_pretty(&entry).expect("cannot convert entry to json");
     j
 }
 
-fn log_to_json(full_log: &Log) -> String {
-    let j: String = serde_json::to_string_pretty(&full_log).expect("cannot convert log to json");
+// convert log to json
+fn log_to_json(log: &Log) -> String {
+    let j: String = serde_json::to_string_pretty(&log).expect("cannot convert log to json");
     j
 }
