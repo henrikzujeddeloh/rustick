@@ -1,13 +1,23 @@
 # Changelog
 
+## [unreleased]
+
+## v0.0.5 (2024-10-31)
+
+### Features
+- list entries in log
+
+### Fixed
+- moved `write_file` function to utils
+
 ## v0.0.4 (2023-10-31)
 
-## Features
+### Features
 - introduced subcommand "start" and "log"
 - added option to clear log
 - stop timer and record elapsed time by pressing "s"
 
-## Fixed
+### Fixed
 - add empty log to json if file created (or empty)
 - convert terminal size to u32 in function
 - correctly handle opening data file
@@ -16,10 +26,10 @@
 
 ## v0.0.3 (2023-10-25)
 
-## Features
+### Features
 - adds start and end time to entry
 
-## Fixed
+### Fixed
 - handle data.json file creation if not found
 
 

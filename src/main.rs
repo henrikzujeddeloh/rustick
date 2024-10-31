@@ -1,7 +1,6 @@
 // Import from standard library
 use std::time::Duration;
 use std::io::Write;
-use std::fs;
 
 // Import from third parties
 use clap::Parser;
@@ -34,12 +33,15 @@ enum Command {
     Log {
         #[clap(long, short, action)]
         /// clear log
-        clear: bool
+        clear: bool,
+        #[clap(long, short, )]
+        /// remove entry
+        remove: Option<u32>,
     }
 }
 
 // create struct with entry parameters
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq)]
 struct Entry {
     name: String,
     duration: u32,
@@ -64,39 +66,54 @@ fn main() {
         "log": []
     }"#;
 
+    // parse arguments
     let args = Cli::parse();
 
     // define path to data.json
     let json_path = "data.json";
+
+    // open file and read contents to string
     let mut file = utils::open_file(&json_path);
     let mut file_contents = utils::read_file(&mut file);
+    // if file is empty, add empty log template
     match file_contents.is_empty() {
         true => file_contents = empty_log.to_string(),
         false => ()
     };
+    // parse log from json
     let mut data_log: Log = match serde_json::from_str(&file_contents){
         Ok(data_log) => data_log,
         Err(err) => {
             panic!("error parsing json: {:?}", err)
         }
     };
+
+    // run rustick command
     match args.command {
         Command::Start { task, duration }=> {
             println!("Running {} for {} minutes...", &task, &duration);
             let new_entry: Entry = run_task(&task, &duration);
-            //println!("New entry: {}", entry_to_json(&new_entry));
             // add entry to the log
             data_log.log.push(new_entry);
             // write updated log as json to file
-            write_file(&log_to_json(&data_log));
+            utils::write_file(&log_to_json(&data_log), &json_path);
         },
-        Command::Log { clear } => {
+        Command::Log { clear, remove } => {
+            match remove {
+                None => (),
+                Some(index) => {
+                    println!("Removing entry {}", index);
+                    data_log.log.remove(index.try_into().unwrap());
+                    utils::write_file(&log_to_json(&data_log), &json_path);
+                },
+            }
             if clear == true {
                 println!("Clearing Log!");
                 file_contents = empty_log.to_string();
-                write_file(&file_contents);
+                utils::write_file(&file_contents, &json_path);
             } else {
                 println!("Listing entries");
+                list_entries(&data_log);
             }
         },
     }
@@ -117,39 +134,43 @@ fn run_task(task: &String, duration: &u32) -> Entry{
     entry
 }
 
+// updating timer bar
 fn update_bar(dur: &u32) {
+    // get terminal width
     let term_width: u32 = utils::get_term_width();
+    // calculate milliseconds per block of bar
     let millisec_per_block: u32 = (dur * 60000) / &term_width;
+    // instantiate bar as empty string
     let mut bar = String::from("");
+    // loop across terminal width
     for _block in 1..term_width{
+        // add '#' to bar string 
         let _ = &bar.push('#');
+        // print bar string to terminal
         print!("\r{}", &bar);
         let _ = std::io::stdout().flush();
+        // enable reading raw keyboard input
         enable_raw_mode().unwrap();
+        // check if keypress event occurs during wait time
         if poll(Duration::from_millis(millisec_per_block as u64)).unwrap() {
             let event = read().unwrap();
             println!("Event::{:?}\r", event);
+            // checks if keypress is character 's'
             if event == Event::Key(KeyCode::Char('s').into()) {
                 println!("Stopping timer");
+                // exit timer bar loop
                 break;
             }
-
-        } else {
-            // do nothing
         }
     }
 }
 
-
-// write string to file
-fn write_file(contents: &String) {
-    fs::write("data.json", &contents).expect("write contents file");
-}
-
-// convert single entry to json
-fn entry_to_json(entry: &Entry) -> String {
-    let j: String = serde_json::to_string_pretty(&entry).expect("cannot convert entry to json");
-    j
+// lists all entries and duration in log
+fn list_entries(log: &Log) {
+    for entry in log.log.iter().rev() {
+        println!("{}. {} for {} mins.", &log.log.iter().position(|e| e == entry).unwrap()+1, entry.name, entry.duration);
+    }
+    
 }
 
 // convert log to json

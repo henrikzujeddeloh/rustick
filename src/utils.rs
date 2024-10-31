@@ -2,6 +2,7 @@ use terminal_size::{Width, Height, terminal_size};
 use std::io::Read;
 use std::fs::File;
 use std::io::ErrorKind;
+use std::fs;
 
 
 // open file at path (if it doesn't exist, create it) and return file object
@@ -32,6 +33,11 @@ pub fn read_file(file: &mut File) -> String {
     let _ = file.read_to_string(&mut contents);
     //println!("data.json contains: {}", &contents);
     contents
+}
+
+// write string to file
+pub fn write_file(contents: &String, path: &str) {
+    fs::write(&path, &contents).expect("write contents file");
 }
 
 pub fn get_term_width() -> u32 {

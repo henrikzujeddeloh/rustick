@@ -1,6 +1,6 @@
 [package]
 name = "rustick"
-version = "0.0.4"
+version = "0.0.5"
 authors = ["Henrik zu Jeddeloh <henrik.zujeddeloh@protonmail.com>"]
 description = "A CLI timer/time tracker"
 readme = "README.md"
